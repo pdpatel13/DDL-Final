@@ -1,0 +1,75 @@
+#!/bin/bash
+# Request an interactive session on Perlmutter
+salloc -N 1 -C gpu -q interactive -t 02:00:00 --gres=gpu:4 --account=m4431
+
+salloc --account=m4431 -C gpu -q interactive -t 1:00:00 -n 4 -c 32 --gpus-per-task=1 --gpu-bind=none
+
+module load cudatoolkit pytorch
+
+source myenv/bin/activate
+
+srun -n4 --gpu-bind=none python fast_ddpm_main.py \
+    --dataset CheXpert \
+    --deepspeed \
+    --deepspeed_config configs/ds_config.json
+    
+    
+srun -n4 --gpus-per-task=1 --gpu-bind=none python fast_ddpm_main.py --world_size=4 --dataset CheXpert
+
+srun --cpu-bind=none python fast_ddpm_main.py --world_size=4 --dataset CheXpert
+
+
+srun python fast_ddpm_main.py \
+    --config chexpert_linear.yml \
+    --dataset CheXpert \
+    --exp experiments \
+    --doc chexpert_denoising
+    
+    
+srun --nodes=1 --ntasks=4 --gpus=4 --gpus-per-task=1 python fast_ddpm_main.py \
+    --config chexpert_linear.yml \
+    --dataset CheXpert \
+    --exp experiments \
+    --doc chexpert_denoising
+    
+    
+srun --nodes=1 --ntasks=4 --gpus=4 --gpus-per-task=1 python fast_ddpm_main.py \
+    --config ldfd_linear.yml \
+    --dataset LDFDCT \
+    --scheduler_type uniform \
+    --timesteps 10
+    
+    
+    srun --nodes=1 --ntasks=4 --gpus-per-task=1 python fast_ddpm_main.py \
+    --config chexpert_linear.yml \
+    --dataset CheXpert \
+    --scheduler_type uniform \
+    --timesteps 10
+    
+    srun --nodes=1 --ntasks=4 --gpus-per-task=1 python fast_ddpm_main.py \
+    --config ldfd_linear.yml \
+    --dataset LDFDCT \
+    --scheduler_type uniform \
+    --timesteps 10
+    
+    
+python -m torch.distributed.launch --nproc_per_node=4 fast_ddpm_main.py --distributed --config LDFDCT.yml --dataset LDFDCT
+
+salloc -N 1 -C gpu -q interactive -t 01:00:00 --gres=gpu:4 --account=m4431
+
+source pscratch/sd/m/menaman1/Final_Project/myenv/bin/activate
+
+export MASTER_ADDR=$(hostname)
+export MASTER_PORT=29500
+export WORLD_SIZE=4
+
+export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128
+export CUDA_LAUNCH_BLOCKING=1
+
+
+    srun --nodes=1 --ntasks=1 --gpus-per-task=1 python fast_ddpm_main.py \
+    --config chexpert_linear.yml \
+    --dataset CheXpert \
+    --scheduler_type uniform \
+    --timesteps 10
+    
